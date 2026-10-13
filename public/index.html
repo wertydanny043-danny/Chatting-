@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>채팅방</title>
+<style>
+  :root {
+    --bg: #eef1f5;
+    --panel: #ffffff;
+    --text: #1c2430;
+    --muted: #7a8696;
+    --line: #dde2ea;
+    --accent: #3b6cf6;
+    --accent-text: #ffffff;
+    --other: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+  }
+  .app {
+    width: 100%;
+    max-width: 720px;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    box-shadow: 0 0 24px rgba(0,0,0,.06);
+  }
+  header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  header h1 { font-size: 17px; margin: 0; }
+  .status { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #c0392b; }
+  .dot.on { background: #2ecc71; }
+  .nickbtn {
+    border: 1px solid var(--line); background: #fff; border-radius: 14px;
+    padding: 4px 10px; font-size: 13px; cursor: pointer; color: var(--text);
+  }
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 14px;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .msg { display: flex; flex-direction: column; max-width: 78%; }
+  .msg.mine { align-self: flex-end; align-items: flex-end; }
+  .msg.other { align-self: flex-start; align-items: flex-start; }
+  .nick { font-size: 12px; color: var(--muted); margin: 0 4px 3px; }
+  .row { display: flex; align-items: flex-end; gap: 6px; }
+  .msg.mine .row { flex-direction: row-reverse; }
+  .bubble {
+    padding: 9px 13px;
+    border-radius: 16px;
+    background: var(--other);
+    border: 1px solid var(--line);
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: 15px;
+  }
+  .msg.mine .bubble { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .time { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .bubble img { display: block; max-width: 100%; max-height: 320px; border-radius: 10px; cursor: zoom-in; }
+  .bubble.img { padding: 4px; background: transparent; border: none; }
+  .filelink {
+    display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit;
+  }
+  .fileicon {
+    width: 34px; height: 34px; border-radius: 8px; background: rgba(120,130,150,.18);
+    display: grid; place-items: center; font-size: 17px; flex: none;
+  }
+  .fileinfo { min-width: 0; }
+  .filename { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+  .filemeta { font-size: 12px; opacity: .75; }
+  .empty { margin: auto; color: var(--muted); font-size: 14px; }
+  form {
+    display: flex; align-items: flex-end; gap: 8px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background: var(--panel);
+  }
+  .iconbtn, .send {
+    border: none; cursor: pointer; border-radius: 12px; height: 42px; flex: none;
+    font-size: 15px;
+  }
+  .iconbtn { width: 42px; background: #eef1f5; font-size: 19px; }
+  .send { padding: 0 16px; background: var(--accent); color: #fff; font-weight: 600; }
+  .send:disabled, .iconbtn:disabled { opacity: .5; cursor: default; }
+  textarea {
+    flex: 1; resize: none; border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px 12px; font: inherit; font-size: 15px; max-height: 140px; min-height: 42px;
+    outline: none; background: #fff; color: var(--text);
+  }
+  textarea:focus { border-color: var(--accent); }
+  #toast {
+    position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%);
+    background: rgba(20,24,32,.92); color: #fff; padding: 9px 16px; border-radius: 18px;
+    font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 30;
+  }
+  #toast.show { opacity: 1; }
+  #drop {
+    position: fixed; inset: 0; background: rgba(59,108,246,.15);
+    border: 3px dashed var(--accent); display: none; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 700; color: var(--accent); z-index: 20;
+  }
+  #drop.show { display: flex; }
+  #lightbox {
+    position: fixed; inset: 0; background: rgba(0,0,0,.85); display: none;
+    align-items: center; justify-content: center; z-index: 40; cursor: zoom-out;
+  }
+  #lightbox.show { display: flex; }
+  #lightbox img { max-width: 94vw; max-height: 94vh; }
+  dialog {
+    border: none; border-radius: 16px; padding: 24px; width: min(340px, 90vw);
+    box-shadow: 0 10px 40px rgba(0,0,0,.25);
+  }
+  dialog::backdrop { background: rgba(0,0,0,.4); }
+  dialog h2 { margin: 0 0 6px; font-size: 18px; }
+  dialog p { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+  dialog input {
+    width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px;
+    font: inherit; font-size: 15px; margin-bottom: 12px;
+  }
+  dialog button {
+    width: 100%; padding: 11px; border: none; border-radius: 10px; background: var(--accent);
+    color: #fff; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>💬 채팅방</h1>
+    <div class="status">
+      <span class="dot" id="dot"></span>
+      <span id="statusText">연결 중…</span>
+      <button class="nickbtn" id="nickBtn" type="button"></button>
+    </div>
+  </header>
+
+  <div id="messages"><div class="empty" id="empty">아직 메시지가 없어요. 첫 메시지를 보내보세요!</div></div>
+
+  <form id="form" autocomplete="off">
+    <button class="iconbtn" id="attach" type="button" title="파일 첨부" aria-label="파일 첨부">📎</button>
+    <input type="file" id="fileInput" hidden>
+    <textarea id="input" rows="1" placeholder="메시지를 입력하고 Enter (줄바꿈은 Shift+Enter)"></textarea>
+    <button class="send" id="send" type="submit">전송</button>
+  </form>
+</div>
+
+<div id="toast"></div>
+<div id="drop">파일을 여기에 놓아 업로드</div>
+<div id="lightbox"><img alt=""></div>
+
+<dialog id="nickDialog">
+  <form method="dialog" id="nickForm">
+    <h2>닉네임을 정해주세요</h2>
+    <p>채팅방에서 보여질 이름이에요. (최대 20자)</p>
+    <input id="nickInput" maxlength="20" placeholder="예: 홍길동" required>
+    <button type="submit">시작하기</button>
+  </form>
+</dialog>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const messagesEl = $('#messages');
+  const inputEl = $('#input');
+  const dot = $('#dot');
+  const statusText = $('#statusText');
+  const nickBtn = $('#nickBtn');
+  const nickDialog = $('#nickDialog');
+  const nickInput = $('#nickInput');
+  const fileInput = $('#fileInput');
+  const toastEl = $('#toast');
+
+  // 안전한 localStorage 접근
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  };
+
+  function uuid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'id-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+
+  let clientId = store.get('chat-id');
+  if (!clientId) { clientId = uuid(); store.set('chat-id', clientId); }
+  let nick = store.get('chat-nick') || '';
+  let online = 0;
+
+  function updateNickBtn() { nickBtn.textContent = '👤 ' + (nick || '닉네임'); }
+  function askNick() {
+    nickInput.value = nick;
+    if (!nickDialog.open) nickDialog.showModal();
+    nickInput.focus();
+  }
+  $('#nickForm').addEventListener('submit', () => {
+    const v = nickInput.value.trim().slice(0, 20);
+    if (v) { nick = v; store.set('chat-nick', nick); updateNickBtn(); }
+  });
+  nickDialog.addEventListener('cancel', (e) => { if (!nick) e.preventDefault(); });
+  nickBtn.addEventListener('click', askNick);
+  updateNickBtn();
+  if (!nick) askNick();
+
+  // ---------- 토스트 ----------
+  let toastTimer;
+  function toast(text) {
+    toastEl.textContent = text;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2600);
+  }
+
+  // ---------- 메시지 렌더링 ----------
+  const seen = new Set();
+
+  function fmtTime(ts) {
+    return new Date(ts).toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' });
+  }
+  function fmtSize(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1024 / 1024).toFixed(1) + ' MB';
+  }
+  function nearBottom() {
+    return messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 120;
+  }
+  function scrollBottom() { messagesEl.scrollTop = messagesEl.scrollHeight; }
+
+  function render(m) {
+    if (seen.has(m.id)) return;
+    seen.add(m.id);
+    const empty = $('#empty');
+    if (empty) empty.remove();
+
+    const mine = m.clientId === clientId;
+    const wrap = document.createElement('div');
+    wrap.className = 'msg ' + (mine ? 'mine' : 'other');
+
+    if (!mine) {
+      const n = document.createElement('div');
+      n.className = 'nick';
+      n.textContent = m.nick;
+      wrap.appendChild(n);
+    }
+
+    const row = document.createElement('div');
+    row.className = 'row';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+
+    if (m.type === 'file' && m.file) {
+      const url = m.file.url + '?name=' + encodeURIComponent(m.file.name);
+      if (m.file.isImage) {
+        bubble.classList.add('img');
+        const img = document.createElement('img');
+        img.src = m.file.url;
+        img.alt = m.file.name;
+        img.loading = 'lazy';
+        img.addEventListener('load', () => { if (stick) scrollBottom(); });
+        img.addEventListener('click', () => openLightbox(m.file.url));
+        bubble.appendChild(img);
+      } else {
+        const a = document.createElement('a');
+        a.className = 'filelink';
+        a.href = url;
+        a.download = m.file.name;
+        const icon = document.createElement('div');
+        icon.className = 'fileicon';
+        icon.textContent = /\.html?$/i.test(m.file.name) ? '🌐' : '📄';
+        const info = document.createElement('div');
+        info.className = 'fileinfo';
+        const fn = document.createElement('div');
+        fn.className = 'filename';
+        fn.textContent = m.file.name;
+        const meta = document.createElement('div');
+        meta.className = 'filemeta';
+        meta.textContent = fmtSize(m.file.size) + ' · 눌러서 다운로드';
+        info.append(fn, meta);
+        a.append(icon, info);
+        bubble.appendChild(a);
+      }
+    } else {
+      bubble.textContent = m.text; // textContent 사용: HTML이 실행되지 않음
+    }
+
+    const t = document.createElement('div');
+    t.className = 'time';
+    t.textContent = fmtTime(m.time);
+
+    row.append(bubble, t);
+    wrap.appendChild(row);
+    messagesEl.appendChild(wrap);
+  }
+
+  let stick = true;
+  messagesEl.addEventListener('scroll', () => { stick = nearBottom(); });
+
+  // ---------- 라이트박스 ----------
+  const lb = $('#lightbox');
+  function openLightbox(src) { lb.querySelector('img').src = src; lb.classList.add('show'); }
+  lb.addEventListener('click', () => lb.classList.remove('show'));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') lb.classList.remove('show'); });
+
+  // ---------- WebSocket ----------
+  let ws;
+  let retry = 0;
+
+  function setStatus(on) {
+    dot.classList.toggle('on', on);
+    statusText.textContent = on ? `접속 ${online}명` : '연결 끊김 · 재연결 중…';
+  }
+
+  function connect() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}/ws`);
+
+    ws.addEventListener('open', () => { retry = 0; setStatus(true); });
+
+    ws.addEventListener('message', (ev) => {
+      let d;
+      try { d = JSON.parse(ev.data); } catch { return; }
+      if (d.type === 'history') {
+        d.messages.forEach(render);
+        scrollBottom();
+        stick = true;
+      } else if (d.type === 'message') {
+        const mine = d.message.clientId === clientId;
+        const shouldStick = stick || mine;
+        render(d.message);
+        if (shouldStick) scrollBottom();
+      } else if (d.type === 'online') {
+        online = d.count;
+        setStatus(ws.readyState === 1);
+      }
+    });
+
+    ws.addEventListener('close', () => {
+      setStatus(false);
+      const wait = Math.min(1000 * 2 ** retry++, 8000);
+      setTimeout(connect, wait);
+    });
+    ws.addEventListener('error', () => ws.close());
+  }
+  connect();
+
+  // ---------- 텍스트 전송 ----------
+  function sendText() {
+    const text = inputEl.value.trim();
+    if (!text) return;
+    if (!nick) { askNick(); return; }
+    if (!ws || ws.readyState !== 1) { toast('연결 중이에요. 잠시 후 다시 시도해주세요.'); return; }
+    ws.send(JSON.stringify({ type: 'chat', clientId, nick, text }));
+    inputEl.value = '';
+    autoGrow();
+    inputEl.focus();
+  }
+
+  $('#form').addEventListener('submit', (e) => { e.preventDefault(); sendText(); });
+
+  inputEl.addEventListener('keydown', (e) => {
+    // 한글 입력 중(조합 중)에는 Enter를 무시해야 마지막 글자가 중복 전송되지 않음
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
+      e.preventDefault();
+      sendText();
+    }
+  });
+
+  function autoGrow() {
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 140) + 'px';
+  }
+  inputEl.addEventListener('input', autoGrow);
+
+  // ---------- 파일 업로드 ----------
+  const MAX = 10 * 1024 * 1024;
+  async function uploadFile(file) {
+    if (!file) return;
+    if (!nick) { askNick(); return; }
+    if (file.size > MAX) { toast('파일은 10MB까지 올릴 수 있어요.'); return; }
+
+    const qs = new URLSearchParams({ name: file.name || 'image.png', nick, clientId });
+
+    $('#attach').disabled = true;
+    toast('업로드 중…');
+    try {
+      const res = await fetch('/upload?' + qs, { method: 'POST', body: file });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || '업로드에 실패했어요.');
+      toast('업로드 완료');
+    } catch (err) {
+      toast(err.message);
+    } finally {
+      $('#attach').disabled = false;
+      fileInput.value = '';
+    }
+  }
+
+  $('#attach').addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => uploadFile(fileInput.files[0]));
+
+  // 드래그 앤 드롭
+  const drop = $('#drop');
+  let dragDepth = 0;
+  window.addEventListener('dragenter', (e) => {
+    if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) { dragDepth++; drop.classList.add('show'); }
+  });
+  window.addEventListener('dragleave', () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) drop.classList.remove('show'); });
+  window.addEventListener('dragover', (e) => e.preventDefault());
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dragDepth = 0;
+    drop.classList.remove('show');
+    const f = e.dataTransfer && e.dataTransfer.files[0];
+    if (f) uploadFile(f);
+  });
+
+  // 클립보드 이미지 붙여넣기
+  inputEl.addEventListener('paste', (e) => {
+    const f = [...(e.clipboardData?.files || [])][0];
+    if (f) { e.preventDefault(); uploadFile(f); }
+  });
+})();
+</script>
+</body>
+</html>
